@@ -1,0 +1,13 @@
+# CodeAgent 依赖清单
+#
+# 本项目 **零第三方运行时依赖**，仅使用 Python 标准库（urllib / json / ast / subprocess /
+# http.server / unittest 等），因此在离线环境、机房机器上都能直接运行。
+#
+# 只需 Python >= 3.9（开发环境为 3.10.8）。
+#
+# 可选安装（非必需）：
+#   pytest    —— 如果你想用 pytest 跑测试（默认用标准库 unittest 即可）
+#   black     —— 代码格式化
+#
+# pip install -r requirements.txt 会安装下面这些可选项，取消注释即可：
+# pytest>=7.0

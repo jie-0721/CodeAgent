@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 密钥与本地配置（切勿提交真实 API Key）
+#
+# 注意 .env.* 会连带匹配 .env.example，因此最后一行用 ! 把它重新纳入版本控制——
+# 示例模板需要提交，好让助教知道要配哪些变量。
+.env
+.env.*
+!.env.example
+
+# 其他常见密钥文件
+*.pem
+*.key
+secrets.json
+credentials.json
+
+# 运行时产物
+.codeagent/
+*.session.json
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 打包产物（提交压缩包时按需保留）
+submission/

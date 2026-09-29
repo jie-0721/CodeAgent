@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CodeAgent · 代码助手</title>
+<style>
+  :root {
+    --bg: #0f1116; --panel: #171a21; --panel-2: #1e222b; --border: #2a2f3a;
+    --text: #e6e8ee; --muted: #9aa3b2; --accent: #4f8cff; --ok: #3ecf8e;
+    --warn: #ffb020; --err: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); font-size: 14px;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header .brand { font-weight: 600; letter-spacing: .3px; }
+  header .meta { color: var(--muted); font-size: 12px; }
+  header .spacer { flex: 1; }
+  header label { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px;
+  }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  #log { flex: 1; overflow-y: auto; padding: 18px 16px 8px; }
+  .msg { max-width: 900px; margin: 0 auto 18px; }
+  .who { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .bubble {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; line-height: 1.65; word-break: break-word;
+  }
+  .msg.user .bubble { background: #1b2433; border-color: #2c3a52; }
+  .bubble pre {
+    background: #0b0d12; border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; overflow-x: auto; margin: 8px 0; font-size: 12.5px;
+    font-family: Consolas, "Cascadia Mono", monospace;
+  }
+  .bubble code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12.5px; }
+  .bubble p code, .bubble li code { background: #0b0d12; border-radius: 4px; padding: 1px 5px; }
+  .bubble h1, .bubble h2, .bubble h3 { margin: 14px 0 6px; font-size: 15px; }
+  .bubble ul, .bubble ol { margin: 6px 0; padding-left: 22px; }
+  .bubble blockquote { margin: 8px 0; padding-left: 10px; border-left: 3px solid var(--border); color: var(--muted); }
+  .tool {
+    max-width: 900px; margin: 0 auto 10px; background: var(--panel-2);
+    border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 8px 12px; font-size: 12.5px;
+  }
+  .tool.fail { border-left-color: var(--err); }
+  .tool .head { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+  .tool .name { color: var(--accent); font-weight: 600; }
+  .tool pre { margin: 8px 0 0; max-height: 240px; overflow: auto; color: var(--muted); white-space: pre-wrap; }
+  .notice { max-width: 900px; margin: 0 auto 10px; color: var(--warn); font-size: 12.5px; }
+  .error { max-width: 900px; margin: 0 auto 10px; color: var(--err); font-size: 12.5px; }
+  footer { border-top: 1px solid var(--border); background: var(--panel); padding: 10px 16px 14px; }
+  .composer { max-width: 900px; margin: 0 auto; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .chip {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px;
+    padding: 4px 12px; font-size: 12px; color: var(--muted); cursor: pointer;
+  }
+  .chip:hover { color: var(--text); border-color: var(--accent); }
+  .row { display: flex; gap: 10px; align-items: flex-end; }
+  textarea {
+    flex: 1; resize: none; min-height: 52px; max-height: 180px; padding: 10px 12px;
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.5;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 11.5px; margin-top: 6px; }
+  .typing::after { content: "▍"; animation: blink 1s steps(2) infinite; color: var(--accent); }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">CodeAgent</span>
+  <span class="meta" id="meta">加载中...</span>
+  <span class="spacer"></span>
+  <label title="勾选后，写文件与执行代码将不再逐次确认">
+    <input type="checkbox" id="autoApprove" /> 自动放行写操作/执行代码
+  </label>
+  <button id="resetBtn">清空会话</button>
+</header>
+
+<div id="log"></div>
+
+<footer>
+  <div class="composer">
+    <div class="chips">
+      <span class="chip" data-prompt="请审查 examples/buggy_code.py 的代码质量，列出问题并给出修复建议">审查示例文件</span>
+      <span class="chip" data-prompt="解释 examples/buggy_code.py 的结构和主要逻辑">解释代码结构</span>
+      <span class="chip" data-prompt="搜索项目里所有的 TODO 标记">搜索 TODO</span>
+      <span class="chip" data-prompt="列出工作目录里所有的 Python 文件">列出文件</span>
+      <span class="chip" data-prompt="运行 tests 目录下的测试，看是否全部通过">运行测试</span>
+    </div>
+    <div class="row">
+      <textarea id="input" placeholder="描述你的任务，例如：审查 examples/buggy_code.py 并给出修复建议（Enter 发送，Shift+Enter 换行）"></textarea>
+      <button class="primary" id="sendBtn">发送</button>
+    </div>
+    <div class="hint" id="hint">Agent 会先读取文件、调用工具，再给出结论。</div>
+  </div>
+</footer>
+
+<script>
+const log = document.getElementById('log');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const meta = document.getElementById('meta');
+const hint = document.getElementById('hint');
+const autoApprove = document.getElementById('autoApprove');
+
+let sessionId = null;
+let busy = false;
+
+/* ---------------------------------------------------------------- 工具函数 */
+function escapeHtml(text) {
+  return (text || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+/* 极简 Markdown 渲染（离线可用，不做外部依赖） */
+function renderMarkdown(src) {
+  const blocks = [];
+  let text = escapeHtml(src || '');
+  text = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (m, lang, code) => {
+    blocks.push('<pre><code>' + code.replace(/\n$/, '') + '</code></pre>');
+    return '\u0000BLOCK' + (blocks.length - 1) + '\u0000';
+  });
+  const lines = text.split('\n');
+  const out = [];
+  let listType = null;
+  const closeList = () => { if (listType) { out.push('</' + listType + '>'); listType = null; } };
+  for (let line of lines) {
+    const t = line.trim();
+    if (!t) { closeList(); continue; }
+    if (/^\u0000BLOCK\d+\u0000$/.test(t)) { closeList(); out.push(t); continue; }
+    let m;
+    if ((m = t.match(/^(#{1,4})\s+(.*)$/))) { closeList(); out.push('<h' + m[1].length + '>' + m[2] + '</h' + m[1].length + '>'); continue; }
+    if ((m = t.match(/^>\s?(.*)$/))) { closeList(); out.push('<blockquote>' + m[1] + '</blockquote>'); continue; }
+    if ((m = t.match(/^[-*]\s+(.*)$/))) {
+      if (listType !== 'ul') { closeList(); out.push('<ul>'); listType = 'ul'; }
+      out.push('<li>' + inline(m[1]) + '</li>'); continue;
+    }
+    if ((m = t.match(/^\d+[.)]\s+(.*)$/))) {
+      if (listType !== 'ol') { closeList(); out.push('<ol>'); listType = 'ol'; }
+      out.push('<li>' + inline(m[1]) + '</li>'); continue;
+    }
+    closeList();
+    out.push('<p>' + inline(t) + '</p>');
+  }
+  closeList();
+  let html = out.join('\n');
+  html = html.replace(/\u0000BLOCK(\d+)\u0000/g, (m, i) => blocks[Number(i)]);
+  return html;
+}
+function inline(text) {
+  return text
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|\s)\*([^*\n]+)\*/g, '$1<em>$2</em>');
+}
+
+function scrollDown() { log.scrollTop = log.scrollHeight; }
+
+function addUser(text) {
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.innerHTML = '<div class="who">你</div><div class="bubble"></div>';
+  div.querySelector('.bubble').textContent = text;
+  log.appendChild(div); scrollDown();
+}
+
+function addAssistant() {
+  const div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.innerHTML = '<div class="who">CodeAgent</div><div class="bubble typing"></div>';
+  log.appendChild(div); scrollDown();
+  return div.querySelector('.bubble');
+}
+
+function addTool(name, args) {
+  const div = document.createElement('div');
+  div.className = 'tool';
+  div.innerHTML = '<div class="head"><span>⚙</span><span class="name"></span><span class="args"></span></div>'
+                + '<pre class="body">执行中...</pre>';
+  div.querySelector('.name').textContent = name;
+  div.querySelector('.args').textContent = args ? JSON.stringify(args) : '';
+  log.appendChild(div); scrollDown();
+  return div;
+}
+
+function addLine(className, text) {
+  const div = document.createElement('div');
+  div.className = className;
+  div.textContent = text;
+  log.appendChild(div); scrollDown();
+  return div;
+}
+
+/* ------------------------------------------------------------------ 状态栏 */
+async function loadInfo() {
+  try {
+    const info = await (await fetch('/api/info')).json();
+    const tools = (await (await fetch('/api/tools')).json()).tools || [];
+    meta.textContent = `${info.model} (${info.provider}) · 工作区 ${info.workspace} · ${tools.length} 个工具 · key ${info.api_key}`;
+    hint.textContent = '工具：' + tools.map(t => t.name).join(' / ');
+  } catch (err) {
+    meta.textContent = '无法读取服务信息：' + err;
+  }
+}
+
+/* -------------------------------------------------------------------- 发送 */
+async function send(prompt) {
+  if (busy) return;
+  const message = (prompt !== undefined ? prompt : input.value).trim();
+  if (!message) return;
+  input.value = '';
+  busy = true; sendBtn.disabled = true;
+  addUser(message);
+
+  let bubble = null;
+  let streamed = false;
+  let pendingTool = null;
+  const pendingQueue = [];
+
+  const finishBubble = () => {
+    if (bubble) { bubble.classList.remove('typing'); }
+  };
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, session_id: sessionId, auto_approve: autoApprove.checked })
+    });
+    if (!response.ok || !response.body) throw new Error('HTTP ' + response.status);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+      for (const part of parts) {
+        const line = part.split('\n').find(l => l.startsWith('data:'));
+        if (!line) continue;
+        let event;
+        try { event = JSON.parse(line.slice(5).trim()); } catch (e) { continue; }
+        handleEvent(event);
+      }
+    }
+  } catch (err) {
+    addLine('error', '请求失败：' + err);
+  } finally {
+    finishBubble();
+    busy = false; sendBtn.disabled = false; input.focus();
+  }
+
+  function handleEvent(event) {
+    switch (event.type) {
+      case 'session':
+        sessionId = event.session_id;
+        break;
+      case 'llm_start':
+        streamed = false;
+        break;
+      case 'assistant_delta':
+        if (!bubble) bubble = addAssistant();
+        streamed = true;
+        bubble.dataset.raw = (bubble.dataset.raw || '') + event.content;
+        bubble.innerHTML = renderMarkdown(bubble.dataset.raw);
+        scrollDown();
+        break;
+      case 'assistant_message':
+        break;
+      case 'tool_call':
+        pendingTool = addTool(event.name, event.arguments);
+        pendingQueue.push(pendingTool);
+        break;
+      case 'tool_result': {
+        const card = pendingQueue.shift() || pendingTool;
+        if (card) {
+          if (!event.ok) card.classList.add('fail');
+          card.querySelector('.head').insertAdjacentHTML('beforeend',
+            '<span style="margin-left:auto">' + (event.ok ? '✓' : '✗') + ' ' + (event.step ? event.step.elapsed : '') + 's</span>');
+          card.querySelector('.body').textContent = event.preview || '(空)';
+        }
+        scrollDown();
+        break;
+      }
+      case 'warning':
+        addLine('notice', '⚠ ' + event.message);
+        break;
+      case 'error':
+        addLine('error', '✗ ' + event.message);
+        break;
+      case 'final':
+        if (!streamed) {
+          if (!bubble) bubble = addAssistant();
+          bubble.dataset.raw = event.content;
+          bubble.innerHTML = renderMarkdown(event.content);
+        }
+        finishBubble();
+        scrollDown();
+        break;
+      case 'done':
+        if (event.result) {
+          hint.textContent = `本次：${event.result.tool_calls} 次工具调用 · ${event.result.elapsed}s · 结束原因 ${event.result.stopped_reason}`;
+        }
+        break;
+    }
+  }
+}
+
+/* -------------------------------------------------------------------- 绑定 */
+sendBtn.addEventListener('click', () => send());
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+document.querySelectorAll('.chip').forEach(chip => {
+  chip.addEventListener('click', () => { input.value = chip.dataset.prompt; input.focus(); });
+});
+document.getElementById('resetBtn').addEventListener('click', async () => {
+  await fetch('/api/reset', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId })
+  });
+  log.innerHTML = '';
+  sessionId = null;
+  addLine('notice', '会话已清空。');
+});
+
+loadInfo();
+input.focus();
+</script>
+</body>
+</html>

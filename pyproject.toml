@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codeagent-homework1"
+version = "1.0.0"
+description = "CodeAgent —— 一个零第三方依赖的代码助手 Agent（Homework 1）"
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = ["agent", "llm", "code-review", "homework"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+]
+# 运行时零第三方依赖，仅使用标准库
+dependencies = []
+
+[project.scripts]
+# 安装后即可在任意目录使用：codeagent demo / codeagent chat / codeagent web
+codeagent = "codeagent.cli:main"
+
+[project.urls]
+Homepage = "https://example.com/code-agent"
+
+[tool.setuptools.packages.find]
+include = ["codeagent*"]
+
+[tool.setuptools.package-data]
+# Web 界面是单文件静态资源，必须随包一起安装
+"codeagent.web" = ["static/*.html"]
